@@ -1,0 +1,77 @@
+#!/bin/bash
+#Filename: sssh
+#Description: SSH into a Databricks control shard
+
+############ Helper functions ##################
+
+function usage {
+    echo -e "\nUSAGE: sssh <vault-pod> <shard-name> <context>"
+    echo -e "\t<vault-pod> is the name of the 'Vault Host' available from Vault"
+    echo -e "\t<shard-nam> is the short hostname of the shard, e.g. 'pr-12345'"
+    echo -e "\t<context> is context in which the shard is running: dev or staging"
+    exit 1
+}
+
+function abort {
+    echo $!
+    exit 1
+}
+
+function require {
+    TOOL=$1
+    MSG=$2
+    if ! which $TOOL >/dev/null 2>&1 ; then
+	    if [ -z "$MSG" ]
+            abort "$TOOL is required and not found in environment; please install it"
+        else
+            abort "$TOOL is required and not found in environment; see: \n$MSG"
+        fi
+    fi
+}
+
+
+function init {
+    if [ $# -ne 3 ] ; then
+        usage
+    fi
+
+    VAULT=$1
+    SHARD=$2
+    ENV=$3
+    KEYS=~/keys
+
+    if [ ! -e "$KEYS" ]; then
+        mkdir -p "$KEYS" || abort "Unable to create $KEYS directory"
+    fi
+    if echo $ENV | grep -q -i prod ; then
+        abort "this script should NOT be used for production shards!!!!"
+    fi
+
+    require kubectl 'https://databricks.atlassian.net/wiki/spaces/UN/pages/691175632/Onboarding+Logistics+Checklist#OnboardingLogisticsChecklist-MacOS%F0%9F%8D%8F'
+    require jq "brew install jq"
+}
+
+
+############ Main script body ##################
+
+## Read command line parameters and run sanity checks
+init $*
+
+## Retrieve the shard information from Vault
+kubectl --context $ENV --namespace vault exec -it $VAULT cat aws/shards/$SHARD/shard.json > $KEYS/$SHARD.json
+
+## Extract the control plane and worker keys
+cat $KEYS/$SHARD.json | jq .shardAwsEnvInfo.core_instance_desc.ssh_private_key_contents | sed -e "s/.*/'&'/"  | xargs printf | sed -e "s/\"//" > $KEYS/$SHARD.pem
+chmod 600 $KEYS/$SHARD.pem
+cat $KEYS/$SHARD.json | jq .shardAwsEnvInfo.worker_instance_desc.ssh_private_key_contents | sed -e "s/.*/'&'/"  | xargs printf | sed -e "s/\"//" > $KEYS/$SHARD-worker.pem
+chmod 600 $KEYS/$SHARD-worker.pem
+
+## Print some shard related info for easy reference
+echo -e "\n===Control plane key===\n$KEYS/$SHARD.pem"
+echo -e "\n===Worker key===\n$KEYS/$SHARD-worker.pem"
+echo -e "\n===Log into control plane:==="
+cat $KEYS/$SHARD.json | jq .shardKubeInfo.node_infos[0].public_dns_name | xargs -I {} echo 'ssh -i $KEYS/'$SHARD'.pem core@'{}
+echo "\n===Databricks admin password==="
+cat $KEYS/$SHARD.json | jq .shardAwsEnvInfo.shard_admin_info.dbadmin_password
+
+# vim: set ts=4 sw=5 expandtab ruler:
