@@ -1,6 +1,6 @@
 #!/bin/bash
 #Filename: sssh
-#Description: SSH into a Databricks control shard
+#Description: retrieve SSH keys for a Vault-managed Databricks shard
 
 ############ Helper functions ##################
 
@@ -28,7 +28,6 @@ function require {
         fi
     fi
 }
-
 
 function init {
     if [ $# -ne 3 ] ; then
@@ -73,5 +72,3 @@ echo -e "\n===Log into control plane:==="
 cat $KEYS/$SHARD.json | jq .shardKubeInfo.node_infos[0].public_dns_name | xargs -I {} echo 'ssh -i $KEYS/'$SHARD'.pem core@'{}
 echo "\n===Databricks admin password==="
 cat $KEYS/$SHARD.json | jq .shardAwsEnvInfo.shard_admin_info.dbadmin_password
-
-# vim: set ts=4 sw=5 expandtab ruler:
