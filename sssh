@@ -69,8 +69,8 @@ chmod 600 $KEYS/$SHARD-worker.pem
 echo -e "\n===Control plane key===\n${KEYS}/${SHARD}.pem"
 echo -e "\n===Worker key===\n${KEYS}/${SHARD}-worker.pem"
 echo -e "\n===Log into control plane:==="
-CONTROL=$(cat ${KEYS}/${SHARD}.json | jq .shardKubeInfo.node_infos[0].public_dns_name)
-echo "ssh -i ${KEYS}/${SHARD}.pem core\@${CONTROL}"
+CONTROL=$(cat ${KEYS}/${SHARD}.json | jq .shardKubeInfo.node_infos[0].public_dns_name | sed -e "s/\"//" )
+echo "ssh -i ${KEYS}/${SHARD}.pem core@${CONTROL}"
 ##cat ${KEYS}/${SHARD}.json | jq .shardKubeInfo.node_infos[0].public_dns_name | xargs -I {} echo 'ssh -i ${KEYS}/'${SHARD}'.pem core@'{}
 echo -e "\n===Databricks admin password==="
 cat ${KEYS}/${SHARD}.json | jq .shardAwsEnvInfo.shard_admin_info.dbadmin_password
